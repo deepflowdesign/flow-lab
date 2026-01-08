@@ -430,3 +430,82 @@ Host *
   ServerAliveInterval 15
   ServerAliveCountMax 4
 ```
+
+---
+
+## セキュリティ強化（推奨）
+
+Tailscaleを使っていれば外部からの直接攻撃リスクは低いですが、以下の設定を入れておくとより安心です。
+
+### 1. SSHのパスワード認証を無効化
+
+SSHキー認証のみに制限します。
+
+```bash
+sudo nano /etc/ssh/sshd_config
+```
+
+以下の2行を変更（コメントアウトされていたら外す）：
+
+```
+PermitRootLogin no
+PasswordAuthentication no
+```
+
+設定を反映：
+
+```bash
+sudo systemctl restart ssh
+```
+
+**注意**: この設定を行う前に、SSHキー認証でログインできることを確認してください。パスワード認証を無効化した後にキー認証が失敗すると、サーバーにログインできなくなります。
+
+### 2. ファイアウォール設定（ufw）
+
+Tailscale IP（100.64.0.0/10）からのみアクセスを許可します。
+
+```bash
+# デフォルトポリシー設定
+sudo ufw default deny incoming
+sudo ufw default allow outgoing
+
+# Tailscale IPからのSSHを許可
+sudo ufw allow from 100.64.0.0/10 to any port 22
+
+# Tailscale IPからのSyncthingを許可
+sudo ufw allow from 100.64.0.0/10 to any port 8384   # WebUI
+sudo ufw allow from 100.64.0.0/10 to any port 22000  # 同期
+
+# ファイアウォール有効化
+sudo ufw enable
+
+# 状態確認
+sudo ufw status
+```
+
+### 3. 自動セキュリティアップデート
+
+セキュリティパッチを自動適用します。
+
+```bash
+sudo apt install -y unattended-upgrades
+sudo dpkg-reconfigure -plow unattended-upgrades
+```
+
+設定確認：
+
+```bash
+cat /etc/apt/apt.conf.d/20auto-upgrades
+# 以下が表示されればOK
+# APT::Periodic::Update-Package-Lists "1";
+# APT::Periodic::Unattended-Upgrade "1";
+```
+
+### セキュリティ設定まとめ
+
+| 設定 | 効果 |
+|------|------|
+| PermitRootLogin no | rootでの直接ログインを禁止 |
+| PasswordAuthentication no | パスワード認証を禁止（キー認証のみ） |
+| ufw | Tailscale IP以外からのアクセスをブロック |
+| unattended-upgrades | セキュリティパッチ自動適用 |
